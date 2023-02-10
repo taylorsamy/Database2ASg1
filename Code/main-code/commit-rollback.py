@@ -29,6 +29,7 @@ def read_csv_file():
     account = []
     account_balance = []
     customer = []
+    transaction = []
 
     # read the accounts.csv file
     with open('Data-Assignment-1\\csv\\account.csv', 'r') as f:
@@ -43,7 +44,11 @@ def read_csv_file():
         for line in f:
             customer.append(line.strip().split(','))
 
-    return account, account_balance, customer
+    with open('Data-Assignment-1\\csv\\transactionLog.csv', 'r') as f:
+        for line in f:
+            transaction.append(line.strip().split(','))
+
+    return account, account_balance, customer, transaction
 
 def commit(transactionID):
     # commit the changes to the csv files
@@ -61,14 +66,11 @@ def commit(transactionID):
     with open('Data-Assignment-1\\csv\\transactionLog.csv', 'r') as f:
         for line in f:
             transaction.append(line.strip().split(','))
-    print (transaction)
-    print(transactionID)
+
     for row in transaction:
         if row[0] == transactionID:
             row[6] = 'complete'
                 
-    print (transaction)
-    print (transactionID)
     write_csv_file(Table.TRANSACTION)
     
 def rollback(transactionID):
@@ -78,7 +80,7 @@ def rollback(transactionID):
     global account_balance
     global customers
 
-    accounts, account_balance, customers = read_csv_file()
+    accounts, account_balance, customers, trans = read_csv_file() # resets the tables to the original values
 
     global transaction
     transaction = []
@@ -87,10 +89,17 @@ def rollback(transactionID):
         for line in f:
             transaction.append(line.strip().split(','))
 
+
     for row in transaction:
         if row[0] == transactionID:
             row[6] = 'rolled back'
+            print("\n\nrolling back transaction: " + transactionID)
+            print("table: " + row[1])
+            print("account: " + row[2])
+            print("Undoing transaction that set the value from: " + row[5] + " to: " + row[4])
+            print("Value is now set to " + row[4] + "\n\n")
 
+ 
     write_csv_file(Table.TRANSACTION)
 
 
@@ -169,8 +178,11 @@ def startTransaction():
     
 #create a function to widthdrawl money from an account. the function should take the account id and the amount to withdrawl, and an enum for the type of account (checking or savings)
 def withdrawl(transID, accountID, amount, accountType: AccountType):
-    old_accounts, old_account_balance, old_customers = read_csv_file()
+    old_accounts, old_account_balance, old_customers, trans = read_csv_file()
     global account_balance
+
+    if (amount < 0):
+        raise Exception("Invalid Amount")
 
     accountNum = None
     #find the account in the account list
@@ -195,8 +207,10 @@ def withdrawl(transID, accountID, amount, accountType: AccountType):
 
 
 def deposit(transID, accountID, amount, accountType: AccountType):
-    accounts, account_balance, customers = read_csv_file()
+    global account_balance, accounts
 
+    if (amount < 0):
+        raise Exception("Invalid Amount")
     accountNum = None
     #find the account in the account list
     for account in accounts:
@@ -215,21 +229,29 @@ def deposit(transID, accountID, amount, accountType: AccountType):
             updateTable(transID, Table.ACCOUNT_BALANCE, accountNum, 1, str(int(account[1]) + amount))
             return 1
 
+def getAccountNumber(fName, lName):
+    global customers
+    for customer in customers:
+        if customer[2] == fName and customer[1] == lName:
+            return customer[0]
+
 
 # Your main program
 def main():
 
-    global accounts, account_balance, customer
-    accounts, account_balance, customer = read_csv_file()
+    global accounts, account_balance, customers, transaction
+    accounts, account_balance, customers, transaction = read_csv_file()
 
     # change the account record with account_id = 3
+
+    accountId = getAccountNumber('Emma', 'Frost')
 
     print("First Output:")
     print("Print Original Contents of Databases")
 
     print ("Account: ", accounts)
     print ("Account Balance: ", account_balance)
-    print ("Customer: ", customer)  
+    print ("Customer: ", customers)  
 
     print("Print current status of Log Sub-system\n\n")
 
@@ -240,17 +262,17 @@ def main():
 
     print("Subtract money from one account.")
 
-    withdrawl(transID, '3', 100, AccountType.CHECKING)
+    withdrawl(transID, str(accountId), 100000, AccountType.CHECKING)
 
     print("Add money to second one")
-    deposit(transID, '4', 100, AccountType.CHECKING)
+    deposit(transID, str(accountId), 100000, AccountType.SAVINGS)
     print("COMMIT all your changes")
     commit(transID)
     print("Print Contents of Databases")
 
     print ("Account: ", accounts)
     print ("Account Balance: ", account_balance)
-    print ("Customer: ", customer)  
+    print ("Customer: ", customers)  
 
     print("Print current status of Log Sub-system\n\n")
 
@@ -265,15 +287,18 @@ def main():
     print("BLOCK TRANSACTION 2")
     transID = startTransaction()
     print("Subtract money from one account (Same Transaction than before)")
-    withdrawl(transID, '3', 100, AccountType.CHECKING)
-    print("Failure occurs!!!!!!! ACTION REQUIRED")
-    rollback(transID)
+    try:
+        withdrawl(transID, str(accountId), 100000, AccountType.CHECKING)
+        deposit(transID, str(accountId), -100000, AccountType.SAVINGS)
+    except Exception as e:
+        print("Failure occurs!!!!!!! ACTION REQUIRED")
+        rollback(transID)
     print("Must either AUTOMATICALLY Roll-back Database to a state of equilibrium (Bonus), OR\nSTOP Operations and show: (a) Log-Status, and (b) Databases Contents.\n")
     print("Transaction failed. Rolled back to previous state.")
     print ("Account: ", accounts)
     print ("Account Balance: ", account_balance)
-    print ("Customer: ", customer)  
-    print("\nThe Log Sub-system contents should show the necessary operations needed to fix the situation!")
+    print ("Customer: ", customers)  
+    print("\nTransaction Log:")
     # read the transaction log file and print the contents
     with open('Data-Assignment-1\\csv\\transactionLog.csv', 'r') as f:
         transactionLog = f.readlines()
